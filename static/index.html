@@ -468,44 +468,49 @@
     }
 
     function renderHealth() {
-        const container = document.getElementById('healthMilestones');
-        if (habitsData.length === 0) {
-            container.innerHTML = `<p class="text-slate-400 text-xs text-center py-4">Добавьте привычку для отслеживания здоровья</p>`;
-            return;
-        }
-
-        const minQuitDate = new Date(Math.min(...habitsData.map(h => {
-            const q = h.quit_date.endsWith('Z') ? h.quit_date : h.quit_date + 'Z';
-            return new Date(q);
-        })));
-        const hoursPassed = (new Date() - minQuitDate) / (1000 * 60 * 60);
-
-        const milestones = [
-            {hours: 0.33, title: "Пульс и давление", desc: "Нормализуются пульс и кровяное давление."},
-            {hours: 8, title: "Кислород в крови", desc: "Уровень угарного газа снижается, кислород в норме."},
-            {hours: 24, title: "Риск инфаркта", desc: "Начинает снижаться риск сердечного приступа."},
-            {hours: 48, title: "Вкус и обоняние", desc: "Восстанавливаются нервные окончания, вкус ярче."},
-            {hours: 72, title: "Дыхание", desc: "Бронхи расслабляются, дышать становится легче."},
-            {hours: 336, title: "Кровообращение", desc: "Улучшается работа легких и общий тонус."}
-        ];
-
-        container.innerHTML = milestones.map(m => {
-            const progress = Math.min(100, Math.floor((hoursPassed / m.hours) * 100));
-            const completed = progress >= 100;
-
-            return `
-                    <div class="glass-card p-3.5 rounded-xl space-y-2">
-                        <div class="flex justify-between items-center text-xs">
-                            <span class="font-semibold ${completed ? 'text-emerald-400' : 'text-slate-200'}">${m.title}</span>
-                            <span class="text-slate-400">${completed ? '100%' : progress + '%'}</span>
-                        </div>
-                        <p class="text-xs text-slate-400">${m.desc}</p>
-                        <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                            <div class="bg-gradient-to-r from-blue-500 to-emerald-400 h-1.5 rounded-full" style="width: ${progress}%"></div>
-                        </div>
-                    </div>`;
-        }).join('');
+    const container = document.getElementById('healthMilestones');
+    if (habitsData.length === 0) {
+        container.innerHTML = `<p class="text-slate-400 text-xs text-center py-4">Добавьте привычку для отслеживания здоровья</p>`;
+        return;
     }
+
+    // Правильный парсинг даты с защитой от смещения
+    const minQuitDate = new Date(Math.min(...habitsData.map(h => {
+        const q = h.quit_date.endsWith('Z') ? h.quit_date : h.quit_date + 'Z';
+        return new Date(q);
+    })));
+
+    // Ограничиваем hoursPassed снизу нулем, чтобы не было отрицательных значений
+    const diffMs = Math.max(0, new Date() - minQuitDate);
+    const hoursPassed = diffMs / (1000 * 60 * 60);
+
+    const milestones = [
+        { hours: 0.33, title: "Пульс и давление", desc: "Нормализуются пульс и кровяное давление." },
+        { hours: 8, title: "Кислород в крови", desc: "Уровень угарного газа снижается, кислород в норме." },
+        { hours: 24, title: "Риск инфаркта", desc: "Начинает снижаться риск сердечного приступа." },
+        { hours: 48, title: "Вкус и обоняние", desc: "Восстанавливаются нервные окончания, вкус ярче." },
+        { hours: 72, title: "Дыхание", desc: "Бронхи расслабляются, дышать становится легче." },
+        { hours: 336, title: "Кровообращение", desc: "Улучшается работа легких и общий тонус." }
+    ];
+
+    container.innerHTML = milestones.map(m => {
+        // Прогресс строго от 0% до 100%
+        const progress = Math.min(100, Math.max(0, Math.floor((hoursPassed / m.hours) * 100)));
+        const completed = progress >= 100;
+
+        return `
+            <div class="glass-card p-3.5 rounded-xl space-y-2">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="font-semibold ${completed ? 'text-emerald-400' : 'text-slate-200'}">${m.title}</span>
+                    <span class="text-slate-400">${completed ? '100%' : progress + '%'}</span>
+                </div>
+                <p class="text-xs text-slate-400">${m.desc}</p>
+                <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                    <div class="bg-gradient-to-r from-blue-500 to-emerald-400 h-1.5 rounded-full" style="width: ${progress}%"></div>
+                </div>
+            </div>`;
+    }).join('');
+}
 
     async function renderCalendar() {
         const grid = document.getElementById('calendarGrid');
