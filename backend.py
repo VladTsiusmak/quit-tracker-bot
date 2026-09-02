@@ -15,6 +15,7 @@ from sqlalchemy import (
     ForeignKey,
     BigInteger,
     select,
+    text,
 )
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
@@ -276,12 +277,21 @@ async def get_db():
 # STARTUP
 # ============================================================
 
+# ============================================================
+# STARTUP
+# ============================================================
+
 @app.on_event("startup")
 async def startup():
     async with engine.begin() as conn:
-        await conn.run_sync(
-            Base.metadata.create_all
-        )
+        # Создаёт новые таблицы, если их нет
+        await conn.run_sync(Base.metadata.create_all)
+
+        # Автоматически добавляет колонку photo_url в PostgreSQL, если её ещё нет
+        if DATABASE_URL.startswith("postgresql"):
+            await conn.execute(
+                text("ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_url VARCHAR;")
+            )
 
 
 # ============================================================
