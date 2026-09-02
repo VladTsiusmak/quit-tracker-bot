@@ -29,7 +29,7 @@ class User(Base):
     id = Column(BigInteger, primary_key=True, index=True)
     first_name = Column(String, nullable=True)
     username = Column(String, nullable=True)
-    photo_url = Column(String, nullable=True)  # Добавлено поле для аватарки
+    photo_url = Column(String, nullable=True)
 
     habits = relationship("Habit", back_populates="user", cascade="all, delete-orphan")
     relapses = relationship("Relapse", back_populates="user", cascade="all, delete-orphan")
@@ -81,9 +81,9 @@ class HabitCreate(BaseModel):
     user_id: int
     type: str
     quit_date: datetime
-    per_day: float
-    unit_price: float
-    unit_size: float
+    per_day: Optional[float] = 1.0
+    unit_price: Optional[float] = 0.0
+    unit_size: Optional[float] = 1.0
 
 
 class RelapseCreate(BaseModel):
@@ -94,7 +94,8 @@ class RelapseCreate(BaseModel):
 
 class FriendAddRequest(BaseModel):
     user_id: int
-    friend_id: int
+    friend_id: Optional[int] = None
+    tag: Optional[str] = None
 
 
 # --- ИНИЦИАЛИЗА FASTAPI ---
@@ -122,7 +123,6 @@ async def read_index():
 
 @app.post("/api/users/sync")
 async def sync_user(data: UserSyncRequest, db: AsyncSession = Depends(get_db)):
-    """Автоматически сохраняет имя и аватарку пользователя из Telegram"""
     stmt = select(User).where(User.id == data.user_id)
     res = await db.execute(stmt)
     user = res.scalar_one_or_none()
@@ -166,6 +166,7 @@ async def get_habits(user_id: int, db: AsyncSession = Depends(get_db)):
 
 @app.post("/api/habits")
 async def save_habit(data: HabitCreate, db: AsyncSession = Depends(get_db)):
+    # 1. Проверяем или создаем пользователя
     stmt_user = select(User).where(User.id == data.user_id)
     res_user = await db.execute(stmt_user)
     user = res_user.scalar_one_or_none()
@@ -175,6 +176,7 @@ async def save_habit(data: HabitCreate, db: AsyncSession = Depends(get_db)):
         db.add(user)
         await db.flush()
 
+    # 2. Удаляем старый трекер этого типа, если был
     stmt_old = select(Habit).where(Habit.user_id == data.user_id, Habit.type == data.type)
     res_old = await db.execute(stmt_old)
     old_habit = res_old.scalar_one_or_none()
@@ -182,13 +184,14 @@ async def save_habit(data: HabitCreate, db: AsyncSession = Depends(get_db)):
         await db.delete(old_habit)
         await db.flush()
 
+    # 3. Сохраняем привычку
     new_habit = Habit(
         user_id=data.user_id,
         type=data.type,
         quit_date=data.quit_date.replace(tzinfo=None),
-        per_day=data.per_day,
-        unit_price=data.unit_price,
-        unit_size=data.unit_size
+        per_day=data.per_day or 1.0,
+        unit_price=data.unit_price or 0.0,
+        unit_size=data.unit_size or 1.0
     )
     db.add(new_habit)
     await db.commit()
@@ -247,9 +250,26 @@ async def get_relapses(user_id: int, db: AsyncSession = Depends(get_db)):
 
 @app.post("/api/friends/add")
 async def add_friend(data: FriendAddRequest, db: AsyncSession = Depends(get_db)):
-    if data.user_id == data.friend_id:
+    target_friend_id = data.friend_id
+
+    # Если передали tag вместо friend_id (поддержка поиска по username)
+    if not target_friend_id and data.tag:
+        clean_tag = data.tag.replace("@", "").strip()
+        stmt_tag = select(User).where(User.username == clean_tag)
+        res_tag = await db.execute(stmt_tag)
+        found_user = res_tag.scalar_one_or_none()
+        if found_user:
+            target_friend_id = found_user.id
+        elif clean_tag.isdigit():
+            target_friend_id = int(clean_tag)
+
+    if not target_friend_id:
+        raise HTTPException(status_code=400, detail="Друг не найден")
+
+    if data.user_id == target_friend_id:
         raise HTTPException(status_code=400, detail="Нельзя добавить самого себя")
 
+    # Инициатор
     stmt_user = select(User).where(User.id == data.user_id)
     res_user = await db.execute(stmt_user)
     user = res_user.scalar_one_or_none()
@@ -257,22 +277,24 @@ async def add_friend(data: FriendAddRequest, db: AsyncSession = Depends(get_db))
         user = User(id=data.user_id, first_name=f"User {data.user_id}")
         db.add(user)
 
-    stmt_friend = select(User).where(User.id == data.friend_id)
+    # Друг
+    stmt_friend = select(User).where(User.id == target_friend_id)
     res_friend = await db.execute(stmt_friend)
     friend = res_friend.scalar_one_or_none()
     if not friend:
-        friend = User(id=data.friend_id, first_name=f"User {data.friend_id}")
+        friend = User(id=target_friend_id, first_name=f"User {target_friend_id}")
         db.add(friend)
 
     await db.flush()
 
+    # Связь
     stmt_check = select(Friendship).where(
         Friendship.user_id == data.user_id,
-        Friendship.friend_id == data.friend_id
+        Friendship.friend_id == target_friend_id
     )
     res_check = await db.execute(stmt_check)
     if not res_check.scalar_one_or_none():
-        db.add(Friendship(user_id=data.user_id, friend_id=data.friend_id))
+        db.add(Friendship(user_id=data.user_id, friend_id=target_friend_id))
         await db.commit()
 
     return {"status": "ok", "message": "Друг успешно добавлен"}
@@ -295,7 +317,7 @@ async def get_friends(user_id: int, db: AsyncSession = Depends(get_db)):
                 "id": friend_user.id,
                 "first_name": friend_user.first_name or f"User {friend_user.id}",
                 "username": friend_user.username,
-                "photo_url": friend_user.photo_url,  # Передаем ссылку на фото
+                "photo_url": friend_user.photo_url,
                 "habits": [
                     {
                         "type": h.type,
