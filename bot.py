@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBAPP_URL = os.getenv("WEBAPP_URL")
+WEBAPP_URL = os.getenv("WEBAPP_URL") or "https://quit-tracker-bot.onrender.com"
 
 if not BOT_TOKEN:
     raise RuntimeError("Не найден BOT_TOKEN. Заполните файл .env (см. .env.example)")
