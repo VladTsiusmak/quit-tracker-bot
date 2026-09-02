@@ -1,9 +1,10 @@
 """
-Бэкенд для трекера отказа от вредных привычек.
+Бэкенд для трекера отказа от вредных привычек + запуск Telegram-бота.
 """
 
+import asyncio
 import sqlite3
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 from typing import Literal
 
@@ -12,12 +13,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+# Импортируем бота и диспетчер из bot.py
+from bot import bot, dp
+
 DB_PATH = Path(__file__).parent / "quit_tracker.db"
 STATIC_DIR = Path(__file__).parent / "static"
 
 HabitType = Literal["vape", "alcohol"]
-
-app = FastAPI(title="Quit Habits Tracker API")
 
 
 def init_db():
@@ -26,37 +28,14 @@ def init_db():
             """
             CREATE TABLE IF NOT EXISTS habits
             (
-                user_id
-                INTEGER
-                NOT
-                NULL,
-                type
-                TEXT
-                NOT
-                NULL,
-                quit_date
-                TEXT
-                NOT
-                NULL,
-                per_day
-                REAL
-                NOT
-                NULL,
-                unit_price
-                REAL
-                NOT
-                NULL,
-                unit_size
-                REAL
-                NOT
-                NULL,
-                PRIMARY
-                KEY
-            (
-                user_id,
-                type
+                user_id INTEGER NOT NULL,
+                type TEXT NOT NULL,
+                quit_date TEXT NOT NULL,
+                per_day REAL NOT NULL,
+                unit_price REAL NOT NULL,
+                unit_size REAL NOT NULL,
+                PRIMARY KEY (user_id, type)
             )
-                )
             """
         )
         db.commit()
@@ -72,6 +51,23 @@ def get_db():
         conn.close()
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Инициализируем базу данных
+    init_db()
+
+    # Запускаем поллинг Telegram-бота в фоновой задаче
+    polling_task = asyncio.create_task(dp.start_polling(bot))
+    yield
+
+    # При остановке веб-сервера корректно завершаем бота
+    polling_task.cancel()
+    await bot.session.close()
+
+
+app = FastAPI(title="Quit Habits Tracker API", lifespan=lifespan)
+
+
 class Habit(BaseModel):
     user_id: int
     type: HabitType
@@ -79,11 +75,6 @@ class Habit(BaseModel):
     per_day: float
     unit_price: float
     unit_size: float
-
-
-@app.on_event("startup")
-def on_startup():
-    init_db()
 
 
 @app.get("/api/habits/{user_id}")
@@ -101,7 +92,8 @@ def save_habit(habit: Habit):
         db.execute(
             """
             INSERT INTO habits (user_id, type, quit_date, per_day, unit_price, unit_size)
-            VALUES (:user_id, :type, :quit_date, :per_day, :unit_price, :unit_size) ON CONFLICT(user_id, type) DO
+            VALUES (:user_id, :type, :quit_date, :per_day, :unit_price, :unit_size) 
+            ON CONFLICT(user_id, type) DO
             UPDATE SET
                 quit_date = excluded.quit_date,
                 per_day = excluded.per_day,
