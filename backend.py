@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.staticfiles import StaticFiles
@@ -12,7 +12,7 @@ from sqlalchemy.orm import declarative_base, relationship, selectinload
 # --- НАСТРОЙКА БАЗЫ ДАННЫХ ---
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./quit_tracker.db")
 
-# Адаптация URI для asyncpg, если на Render используется postgres:// или postgresql://
+# Адаптация URI для asyncpg, если используется PostgreSQL
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
 elif DATABASE_URL.startswith("postgresql://") and not DATABASE_URL.startswith("postgresql+asyncpg://"):
@@ -40,7 +40,7 @@ class Habit(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
     type = Column(String, nullable=False)  # 'vape' или 'alcohol'
-    quit_date = Column(DateTime, nullable=False)
+    quit_date = Column(DateTime(timezone=True), nullable=False)
     per_day = Column(Float, default=0.0)
     unit_price = Column(Float, default=0.0)
     unit_size = Column(Float, default=1.0)
@@ -55,7 +55,7 @@ class Relapse(Base):
     user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
     habit_type = Column(String, nullable=False)
     reason = Column(String, nullable=True)
-    relapse_date = Column(DateTime, default=datetime.utcnow)
+    relapse_date = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="relapses")
 
@@ -104,8 +104,7 @@ async def get_db():
 @app.on_event("startup")
 async def startup():
     async with engine.begin() as conn:
-        # Временно удаляем и пересоздаем таблицы для обновления схемы PostgreSQL
-        await conn.run_sync(Base.metadata.drop_all)
+        # Автоматическое создание отсутствующих таблиц без сброса существующих данных
         await conn.run_sync(Base.metadata.create_all)
 
 
@@ -158,7 +157,7 @@ async def save_habit(data: HabitCreate, db: AsyncSession = Depends(get_db)):
     new_habit = Habit(
         user_id=data.user_id,
         type=data.type,
-        quit_date=data.quit_date.replace(tzinfo=None),
+        quit_date=data.quit_date,
         per_day=data.per_day,
         unit_price=data.unit_price,
         unit_size=data.unit_size
@@ -193,12 +192,14 @@ async def delete_all_habits(user_id: int, db: AsyncSession = Depends(get_db)):
 # --- ЭНДПОИНТЫ СРЫВОВ ---
 @app.post("/api/relapses")
 async def log_relapse(data: RelapseCreate, db: AsyncSession = Depends(get_db)):
+    now_utc = datetime.now(timezone.utc)
+
     # Логируем срыв
     relapse = Relapse(
         user_id=data.user_id,
         habit_type=data.habit_type,
         reason=data.reason,
-        relapse_date=datetime.utcnow()
+        relapse_date=now_utc
     )
     db.add(relapse)
 
@@ -207,7 +208,7 @@ async def log_relapse(data: RelapseCreate, db: AsyncSession = Depends(get_db)):
     res = await db.execute(stmt)
     habit = res.scalar_one_or_none()
     if habit:
-        habit.quit_date = datetime.utcnow()
+        habit.quit_date = now_utc
 
     await db.commit()
     return {"status": "ok"}
@@ -255,7 +256,7 @@ async def add_friend(data: FriendAddRequest, db: AsyncSession = Depends(get_db))
 
     await db.commit()
 
-    # 3. Добавляем двустороннюю или одностороннюю связь
+    # 3. Добавляем запись о дружбе
     stmt_check = select(Friendship).where(
         Friendship.user_id == data.user_id,
         Friendship.friend_id == data.friend_id

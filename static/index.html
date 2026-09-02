@@ -223,7 +223,6 @@
     </nav>
 
     <!-- СКРИПТ ПРИЛОЖЕНИЯ -->
-    <!-- СКРИПТ ПРИЛОЖЕНИЯ -->
     <script>
         const tg = window.Telegram?.WebApp;
         if (tg) {
@@ -344,7 +343,11 @@
 
             habitsData.forEach((h, idx) => {
                 const now = new Date();
-                const quit = new Date(h.quit_date);
+
+                // Парсим ISO дату с учетом UTC маркера
+                const quitStr = h.quit_date.endsWith('Z') ? h.quit_date : h.quit_date + 'Z';
+                const quit = new Date(quitStr);
+
                 const diffMs = Math.max(0, now - quit);
 
                 const totalSeconds = Math.floor(diffMs / 1000);
@@ -373,7 +376,6 @@
                 // Динамическое заполнение кольца прогресса (цель — 30 дней)
                 if (elRing) {
                     const goalDays = 30;
-                    // Если прошло 0 дней, оставляем минимальный видимый хвостик или рассчитываем по часам
                     const currentProgress = (diffMs / (1000 * 60 * 60 * 24)) / goalDays;
                     const percent = Math.min(100, Math.max(0.01, currentProgress * 100));
                     const offset = circumference - (percent / 100) * circumference;
@@ -389,15 +391,19 @@
 
         async function saveHabit() {
             const type = document.getElementById('habitType').value;
-            const quitDate = document.getElementById('quitDate').value;
+            const quitDateVal = document.getElementById('quitDate').value;
             const perDay = parseFloat(document.getElementById('perDay').value);
             const unitPrice = parseFloat(document.getElementById('unitPrice').value);
             const unitSize = parseFloat(document.getElementById('unitSize').value);
 
-            if (!quitDate || isNaN(perDay) || isNaN(unitPrice) || isNaN(unitSize)) {
+            if (!quitDateVal || isNaN(perDay) || isNaN(unitPrice) || isNaN(unitSize)) {
                 alert("Заполните все поля!");
                 return;
             }
+
+            // Корректное сохранение точного локального времени без сдвига UTC
+            const localDate = new Date(quitDateVal);
+            const utcDateString = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000)).toISOString();
 
             await fetch('/api/habits', {
                 method: 'POST',
@@ -405,7 +411,7 @@
                 body: JSON.stringify({
                     user_id: userId,
                     type: type,
-                    quit_date: new Date(quitDate).toISOString(),
+                    quit_date: utcDateString,
                     per_day: perDay,
                     unit_price: unitPrice,
                     unit_size: unitSize
@@ -435,7 +441,10 @@
                 return;
             }
 
-            const minQuitDate = new Date(Math.min(...habitsData.map(h => new Date(h.quit_date))));
+            const minQuitDate = new Date(Math.min(...habitsData.map(h => {
+                const q = h.quit_date.endsWith('Z') ? h.quit_date : h.quit_date + 'Z';
+                return new Date(q);
+            })));
             const hoursPassed = (new Date() - minQuitDate) / (1000 * 60 * 60);
 
             const milestones = [
