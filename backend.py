@@ -22,32 +22,28 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    delete,
     select,
 )
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, relationship
 
-# Импорт бота и диспетчера из bot.py
 from bot import bot, dp
 
-# Получаем DATABASE_URL из переменных окружения
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if DATABASE_URL:
-    # Исправляем префикс для работы с асинхронным asyncpg в SQLAlchemy
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
     elif DATABASE_URL.startswith("postgresql://") and not DATABASE_URL.startswith("postgresql+asyncpg://"):
         DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 else:
-    # Фоллбэк на SQLite для локального запуска
     DATABASE_URL = "sqlite+aiosqlite:///./quit_tracker.db"
 
 engine = create_async_engine(DATABASE_URL, echo=False)
 async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
-# --- Таблицы базы данных ---
 class Base(DeclarativeBase):
     pass
 
@@ -103,7 +99,6 @@ class FriendshipDB(Base):
     __table_args__ = (UniqueConstraint("user_id", "friend_id", name="uix_user_friend"),)
 
 
-# --- Pydantic Схемы ---
 HabitType = Literal["vape", "alcohol"]
 
 
@@ -127,7 +122,6 @@ class AddFriendSchema(BaseModel):
     friend_id: int
 
 
-# --- Инициализация таблицы и Lifespan ---
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -193,6 +187,30 @@ async def save_habit(habit: HabitSchema):
         await session.commit()
     return {"ok": True}
 
+
+# --- МАРШРУТЫ УДАЛЕНИЯ И СБРОСА ---
+
+@app.delete("/api/habits/{user_id}/{habit_type}")
+async def delete_habit(user_id: int, habit_type: str):
+    async with async_session() as session:
+        await session.execute(
+            delete(HabitDB).where(HabitDB.user_id == user_id, HabitDB.type == habit_type)
+        )
+        await session.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/habits/{user_id}")
+async def delete_all_habits(user_id: int):
+    async with async_session() as session:
+        await session.execute(
+            delete(HabitDB).where(HabitDB.user_id == user_id)
+        )
+        await session.commit()
+    return {"ok": True}
+
+
+# --- АНАЛИТИКА И ДРУЗЬЯ ---
 
 @app.post("/api/relapses")
 async def record_relapse(data: RelapseSchema):
