@@ -71,6 +71,7 @@ class Friendship(Base):
 # --- PYDANTIC СХЕМЫ ---
 class HabitCreate(BaseModel):
     user_id: int
+    first_name: Optional[str] = None
     type: str
     quit_date: datetime
     per_day: float
@@ -137,15 +138,20 @@ async def get_habits(user_id: int, db: AsyncSession = Depends(get_db)):
 
 @app.post("/api/habits")
 async def save_habit(data: HabitCreate, db: AsyncSession = Depends(get_db)):
-    # Проверяем или создаем юзера
     stmt_user = select(User).where(User.id == data.user_id)
     res_user = await db.execute(stmt_user)
     user = res_user.scalar_one_or_none()
 
+    name_to_set = data.first_name or f"User {data.user_id}"
+
     if not user:
-        user = User(id=data.user_id, first_name=f"User {data.user_id}")
+        user = User(id=data.user_id, first_name=name_to_set)
         db.add(user)
-        await db.commit()
+    else:
+        if data.first_name:
+            user.first_name = data.first_name
+
+    await db.commit()
 
     # Удаляем старый трекер этого же типа, если был
     stmt_old = select(Habit).where(Habit.user_id == data.user_id, Habit.type == data.type)

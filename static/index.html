@@ -261,7 +261,10 @@
         tg.ready();
     }
 
-    const userId = tg?.initDataUnsafe?.user?.id || 12345678;
+    const tgUser = tg?.initDataUnsafe?.user;
+    const userId = tgUser?.id || 12345678;
+    const userFirstName = tgUser?.first_name || `User ${userId}`;
+
     let habitsData = [];
     let sosInterval = null;
     let sosSeconds = 180;
@@ -423,37 +426,37 @@
     }
 
     async function saveHabit() {
-        const type = document.getElementById('habitType').value;
-        const quitDateVal = document.getElementById('quitDate').value;
-        const perDay = parseFloat(document.getElementById('perDay').value);
-        const unitPrice = parseFloat(document.getElementById('unitPrice').value);
-        const unitSize = parseFloat(document.getElementById('unitSize').value);
+    const type = document.getElementById('habitType').value;
+    const quitDateVal = document.getElementById('quitDate').value;
+    const perDay = parseFloat(document.getElementById('perDay').value);
+    const unitPrice = parseFloat(document.getElementById('unitPrice').value);
+    const unitSize = parseFloat(document.getElementById('unitSize').value);
 
-        if (!quitDateVal || isNaN(perDay) || isNaN(unitPrice) || isNaN(unitSize)) {
-            alert("Заполните все поля!");
-            return;
-        }
-
-        // Корректное сохранение точного локального времени без сдвига UTC
-        const localDate = new Date(quitDateVal);
-        const utcDateString = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000)).toISOString();
-
-        await fetch('/api/habits', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                user_id: userId,
-                type: type,
-                quit_date: utcDateString,
-                per_day: perDay,
-                unit_price: unitPrice,
-                unit_size: unitSize
-            })
-        });
-
-        hideAddForm();
-        loadHabits();
+    if (!quitDateVal || isNaN(perDay) || isNaN(unitPrice) || isNaN(unitSize)) {
+        alert("Заполните все поля!");
+        return;
     }
+
+    const localDate = new Date(quitDateVal);
+    const utcDateString = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000)).toISOString();
+
+    await fetch('/api/habits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            user_id: userId,
+            first_name: userFirstName, // <-- ДОБАВЛЕНО ИМЯ
+            type: type,
+            quit_date: utcDateString,
+            per_day: perDay,
+            unit_price: unitPrice,
+            unit_size: unitSize
+        })
+    });
+
+    hideAddForm();
+    loadHabits();
+}
 
     async function deleteSingleHabit(type) {
         if (!confirm("Удалить этот трекер?")) return;
@@ -468,44 +471,44 @@
     }
 
     function renderHealth() {
-    const container = document.getElementById('healthMilestones');
-    if (!habitsData || habitsData.length === 0) {
-        container.innerHTML = `<p class="text-slate-400 text-xs text-center py-4">Добавьте привычку для отслеживания здоровья</p>`;
-        return;
-    }
+        const container = document.getElementById('healthMilestones');
+        if (!habitsData || habitsData.length === 0) {
+            container.innerHTML = `<p class="text-slate-400 text-xs text-center py-4">Добавьте привычку для отслеживания здоровья</p>`;
+            return;
+        }
 
-    // Парсим все даты через new Date(h.quit_date)
-    const validDates = habitsData
-        .map(h => new Date(h.quit_date).getTime())
-        .filter(t => !isNaN(t));
+        // Парсим все даты через new Date(h.quit_date)
+        const validDates = habitsData
+            .map(h => new Date(h.quit_date).getTime())
+            .filter(t => !isNaN(t));
 
-    if (validDates.length === 0) {
-        container.innerHTML = `<p class="text-slate-400 text-xs text-center py-4">Некорректная дата привычки</p>`;
-        return;
-    }
+        if (validDates.length === 0) {
+            container.innerHTML = `<p class="text-slate-400 text-xs text-center py-4">Некорректная дата привычки</p>`;
+            return;
+        }
 
-    // Берем самую раннюю дату отказа
-    const minQuitTimestamp = Math.min(...validDates);
-    const nowTimestamp = Date.now();
+        // Берем самую раннюю дату отказа
+        const minQuitTimestamp = Math.min(...validDates);
+        const nowTimestamp = Date.now();
 
-    // Считаем прошедшее время в часах
-    const hoursPassed = Math.max(0, (nowTimestamp - minQuitTimestamp) / (1000 * 60 * 60));
+        // Считаем прошедшее время в часах
+        const hoursPassed = Math.max(0, (nowTimestamp - minQuitTimestamp) / (1000 * 60 * 60));
 
-    const milestones = [
-        { hours: 0.33, title: "Пульс и давление", desc: "Нормализуются пульс и кровяное давление." },
-        { hours: 8, title: "Кислород в крови", desc: "Уровень угарного газа снижается, кислород в норме." },
-        { hours: 24, title: "Риск инфаркта", desc: "Начинает снижаться риск сердечного приступа." },
-        { hours: 48, title: "Вкус и обоняние", desc: "Восстанавливаются нервные окончания, вкус ярче." },
-        { hours: 72, title: "Дыхание", desc: "Бронхи расслабляются, дышать становится легче." },
-        { hours: 336, title: "Кровообращение", desc: "Улучшается работа легких и общий тонус." }
-    ];
+        const milestones = [
+            {hours: 0.33, title: "Пульс и давление", desc: "Нормализуются пульс и кровяное давление."},
+            {hours: 8, title: "Кислород в крови", desc: "Уровень угарного газа снижается, кислород в норме."},
+            {hours: 24, title: "Риск инфаркта", desc: "Начинает снижаться риск сердечного приступа."},
+            {hours: 48, title: "Вкус и обоняние", desc: "Восстанавливаются нервные окончания, вкус ярче."},
+            {hours: 72, title: "Дыхание", desc: "Бронхи расслабляются, дышать становится легче."},
+            {hours: 336, title: "Кровообращение", desc: "Улучшается работа легких и общий тонус."}
+        ];
 
-    container.innerHTML = milestones.map(m => {
-        // Прогресс строго от 0% до 100%
-        const progress = Math.min(100, Math.floor((hoursPassed / m.hours) * 100));
-        const completed = progress >= 100;
+        container.innerHTML = milestones.map(m => {
+            // Прогресс строго от 0% до 100%
+            const progress = Math.min(100, Math.floor((hoursPassed / m.hours) * 100));
+            const completed = progress >= 100;
 
-        return `
+            return `
             <div class="glass-card p-3.5 rounded-xl space-y-2">
                 <div class="flex justify-between items-center text-xs">
                     <span class="font-semibold ${completed ? 'text-emerald-400' : 'text-slate-200'}">${m.title}</span>
@@ -516,8 +519,8 @@
                     <div class="bg-gradient-to-r from-blue-500 to-emerald-400 h-1.5 rounded-full" style="width: ${progress}%"></div>
                 </div>
             </div>`;
-    }).join('');
-}
+        }).join('');
+    }
 
     async function renderCalendar() {
         const grid = document.getElementById('calendarGrid');
@@ -573,26 +576,38 @@
             }
 
             container.innerHTML = friends.map(f => {
-                const days = f.habits.length > 0
-                    ? Math.floor((new Date() - new Date(f.habits[0].quit_date)) / (1000 * 60 * 60 * 24))
-                    : 0;
+                let daysClean = 0;
+
+                if (f.habits && f.habits.length > 0) {
+                    // Находим самую раннюю дату отказа у друга
+                    const validTimestamps = f.habits
+                        .map(h => new Date(h.quit_date).getTime())
+                        .filter(t => !isNaN(t));
+
+                    if (validTimestamps.length > 0) {
+                        const minQuitTimestamp = Math.min(...validTimestamps);
+                        const diffMs = Math.max(0, Date.now() - minQuitTimestamp);
+                        daysClean = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                    }
+                }
 
                 return `
-                        <div class="glass-card p-4 rounded-xl flex items-center justify-between">
-                            <div class="flex items-center gap-3">
-                                <div class="w-9 h-9 rounded-full bg-blue-600/30 flex items-center justify-center font-bold text-blue-400 border border-blue-500/30">
-                                    ${f.first_name.charAt(0)}
-                                </div>
-                                <div>
-                                    <h4 class="font-semibold text-xs">${f.first_name}</h4>
-                                    <p class="text-xs text-slate-400">Чист: ${days} дней 🚀</p>
-                                </div>
-                            </div>
-                        </div>`;
+                <div class="glass-card p-4 rounded-xl flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-full bg-blue-600/30 flex items-center justify-center font-bold text-blue-400 border border-blue-500/30">
+                            ${(f.first_name || 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-xs">${f.first_name}</h4>
+                            <p class="text-xs text-slate-400">Чист: ${daysClean} дн. 🚀</p>
+                        </div>
+                    </div>
+                </div>`;
             }).join('');
         } catch (e) {
-            console.error(e);
+            console.error("Ошибка загрузки друзей", e);
         }
+        tg
     }
 
     async function addFriend() {
