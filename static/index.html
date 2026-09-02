@@ -469,20 +469,27 @@
 
     function renderHealth() {
     const container = document.getElementById('healthMilestones');
-    if (habitsData.length === 0) {
+    if (!habitsData || habitsData.length === 0) {
         container.innerHTML = `<p class="text-slate-400 text-xs text-center py-4">Добавьте привычку для отслеживания здоровья</p>`;
         return;
     }
 
-    // Правильный парсинг даты с защитой от смещения
-    const minQuitDate = new Date(Math.min(...habitsData.map(h => {
-        const q = h.quit_date.endsWith('Z') ? h.quit_date : h.quit_date + 'Z';
-        return new Date(q);
-    })));
+    // Парсим все даты через new Date(h.quit_date)
+    const validDates = habitsData
+        .map(h => new Date(h.quit_date).getTime())
+        .filter(t => !isNaN(t));
 
-    // Ограничиваем hoursPassed снизу нулем, чтобы не было отрицательных значений
-    const diffMs = Math.max(0, new Date() - minQuitDate);
-    const hoursPassed = diffMs / (1000 * 60 * 60);
+    if (validDates.length === 0) {
+        container.innerHTML = `<p class="text-slate-400 text-xs text-center py-4">Некорректная дата привычки</p>`;
+        return;
+    }
+
+    // Берем самую раннюю дату отказа
+    const minQuitTimestamp = Math.min(...validDates);
+    const nowTimestamp = Date.now();
+
+    // Считаем прошедшее время в часах
+    const hoursPassed = Math.max(0, (nowTimestamp - minQuitTimestamp) / (1000 * 60 * 60));
 
     const milestones = [
         { hours: 0.33, title: "Пульс и давление", desc: "Нормализуются пульс и кровяное давление." },
@@ -495,14 +502,14 @@
 
     container.innerHTML = milestones.map(m => {
         // Прогресс строго от 0% до 100%
-        const progress = Math.min(100, Math.max(0, Math.floor((hoursPassed / m.hours) * 100)));
+        const progress = Math.min(100, Math.floor((hoursPassed / m.hours) * 100));
         const completed = progress >= 100;
 
         return `
             <div class="glass-card p-3.5 rounded-xl space-y-2">
                 <div class="flex justify-between items-center text-xs">
                     <span class="font-semibold ${completed ? 'text-emerald-400' : 'text-slate-200'}">${m.title}</span>
-                    <span class="text-slate-400">${completed ? '100%' : progress + '%'}</span>
+                    <span class="text-slate-400">${progress}%</span>
                 </div>
                 <p class="text-xs text-slate-400">${m.desc}</p>
                 <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
