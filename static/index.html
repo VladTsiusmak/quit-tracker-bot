@@ -3,259 +3,218 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Quit Habits Tracker</title>
-    <!-- Telegram WebApp SDK -->
+    <title>Quit Tracker</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --accent-color: #0088cc;
+            --text-color: #ffffff;
+            --text-secondary: #aaaaaa;
+            --danger-color: #ff4d4d;
+        }
+
         body {
-            background-color: #0f172a;
-            color: #f8fafc;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            padding-bottom: 80px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 16px;
+            box-sizing: border-box;
+            user-select: none;
         }
-        .tab-active {
-            color: #3b82f6;
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
-        .glass-card {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+
+        .timer {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--accent-color);
+            margin: 10px 0;
+            text-align: center;
         }
-        .progress-ring-circle {
-            transition: stroke-dashoffset 0.5s ease-in-out;
-            transform: rotate(-90deg);
-            transform-origin: 50% 50%;
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .stat-item {
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        button {
+            width: 100%;
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button.danger {
+            background-color: var(--danger-color);
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 8px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background-color: #2a2a2a;
+            color: white;
+            box-sizing: border-box;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 100;
+        }
+
+        .modal-content {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .friend-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--accent-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            object-fit: cover;
         }
     </style>
 </head>
-<body class="min-h-screen text-slate-100 flex flex-col justify-between">
+<body>
 
-    <!-- Верхний бар -->
-    <header class="p-4 flex items-center justify-between border-b border-slate-800 glass-card sticky top-0 z-10">
-        <div class="flex items-center gap-2">
-            <i data-lucide="shield-check" class="text-blue-500"></i>
-            <h1 class="font-bold text-lg">QuitTracker</h1>
-        </div>
-        <button id="sosBtn" onclick="openSosModal()" class="bg-red-500/20 text-red-400 border border-red-500/40 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1 hover:bg-red-500/30 transition">
-            <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
-            <span>Мне тяжело</span>
-        </button>
-    </header>
+    <div id="habitsContainer"></div>
 
-    <!-- ОСНОВНОЙ КОНТЕНТ (ВКЛАДКИ) -->
-    <main class="p-4 space-y-4 flex-1">
+    <button onclick="openModal('addModal')">+ Добавить привычку</button>
 
-        <!-- ВКЛАДКА 1: ГЛАВНАЯ -->
-        <section id="tabHome" class="space-y-4">
-            <!-- Список активных трекеров -->
-            <div id="habitsList" class="space-y-4">
-                <div class="glass-card p-6 rounded-2xl text-center space-y-2">
-                    <p class="text-slate-400 text-sm">У вас пока нет активных трекеров</p>
-                    <button onclick="showAddForm()" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2 rounded-xl text-sm transition">
-                        + Добавить привычку
-                    </button>
-                </div>
-            </div>
+    <div class="card" style="margin-top: 20px;">
+        <h3>Статистика срывов</h3>
+        <canvas id="relapsesChart" style="max-height: 200px;"></canvas>
+    </div>
 
-            <!-- Форма добавления привычки -->
-            <div id="addForm" class="hidden glass-card p-5 rounded-2xl space-y-4">
-                <h3 class="font-semibold text-lg border-b border-slate-700 pb-2">Новая привычка</h3>
-                <div>
-                    <label class="text-xs text-slate-400">Тип привычки</label>
-                    <select id="habitType" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-sm outline-none focus:border-blue-500">
-                        <option value="vape">Вейп / Под-система / Сигареты</option>
-                        <option value="alcohol">Алкоголь</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-xs text-slate-400">Дата и время отказа</label>
-                    <input type="datetime-local" id="quitDate" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-sm outline-none focus:border-blue-500">
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-xs text-slate-400">Расход в день (шт/мл/л)</label>
-                        <input type="number" step="0.1" id="perDay" placeholder="1" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-sm outline-none focus:border-blue-500">
-                    </div>
-                    <div>
-                        <label class="text-xs text-slate-400">Цена за единицу (₴)</label>
-                        <input type="number" id="unitPrice" placeholder="350" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-sm outline-none focus:border-blue-500">
-                    </div>
-                </div>
-                <div>
-                    <label class="text-xs text-slate-400">Размер упаковки/емкости</label>
-                    <input type="number" step="0.1" id="unitSize" value="1" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-sm outline-none focus:border-blue-500">
-                </div>
-                <div class="flex gap-2 pt-2">
-                    <button onclick="saveHabit()" class="flex-1 bg-blue-600 hover:bg-blue-500 py-2.5 rounded-xl font-medium text-sm transition">Сохранить</button>
-                    <button onclick="hideAddForm()" class="bg-slate-800 hover:bg-slate-700 px-4 py-2.5 rounded-xl text-sm transition">Отмена</button>
-                </div>
-            </div>
+    <div class="card">
+        <h3>Друзья</h3>
+        <div id="friendsContainer">Загрузка...</div>
+        <button onclick="openModal('friendModal')" style="background-color: #333;">+ Добавить друга</button>
+    </div>
 
-            <!-- Управление -->
-            <div id="controls" class="flex gap-2">
-                <button onclick="showAddForm()" class="flex-1 glass-card hover:bg-slate-800/80 p-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border border-slate-700">
-                    <i data-lucide="plus-circle" class="w-4 h-4 text-blue-400"></i> Добавить привычку
-                </button>
-                <button onclick="deleteAllHabits()" class="glass-card hover:bg-red-500/10 p-3 rounded-xl text-xs font-semibold text-red-400 flex items-center justify-center gap-2 border border-red-500/20">
-                    <i data-lucide="trash-2" class="w-4 h-4"></i> Сбросить всё
-                </button>
-            </div>
-        </section>
+    <!-- Модальное окно добавления привычки -->
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <h3>Новая привычка</h3>
+            <label>Тип:</label>
+            <select id="habitType">
+                <option value="vape">Вейп / Сигареты</option>
+                <option value="alcohol">Алкоголь</option>
+            </select>
 
-        <!-- ВКЛАДКА 2: ЗДОРОВЬЕ -->
-        <section id="tabHealth" class="hidden space-y-4">
-            <h2 class="font-bold text-lg">Восстановление организма</h2>
-            <div id="healthMilestones" class="space-y-3"></div>
-        </section>
+            <label>Дата и время бросания:</label>
+            <input type="datetime-local" id="quitDate">
 
-        <!-- ВКЛАДКА 3: КАЛЕНДАРЬ И АНАЛИТИКА -->
-        <section id="tabCalendar" class="hidden space-y-4">
-            <h2 class="font-bold text-lg">Календарь и срывы</h2>
-            <div class="glass-card p-4 rounded-2xl">
-                <div class="flex justify-between items-center mb-4">
-                    <span class="font-semibold text-sm" id="currentMonthYear"></span>
-                    <span class="text-xs text-emerald-400 font-medium">🟢 Дни без срывов</span>
-                </div>
-                <div id="calendarGrid" class="grid grid-cols-7 gap-1.5 text-center text-xs"></div>
-            </div>
+            <label>Трат в день (штук / мл):</label>
+            <input type="number" id="perDay" value="1">
 
-            <div class="glass-card p-4 rounded-2xl space-y-3">
-                <h3 class="font-semibold text-sm border-b border-slate-700 pb-2">История срывов</h3>
-                <div id="relapseHistory" class="space-y-2 text-xs text-slate-400">
-                    <p class="text-center py-2">Срывов пока не зафиксировано 🎉</p>
-                </div>
-            </div>
-        </section>
+            <label>Цена за пачку / флакон (₽):</label>
+            <input type="number" id="unitPrice" value="500">
 
-        <!-- ВКЛАДКА 4: ДРУЗЬЯ -->
-        <section id="tabFriends" class="hidden space-y-4">
-            <h2 class="font-bold text-lg">Друзья в трекере</h2>
+            <label>На сколько дней хватает (дней):</label>
+            <input type="number" id="unitSize" value="1">
 
-            <div class="glass-card p-4 rounded-2xl space-y-3">
-                <h3 class="font-semibold text-sm">Ваш ID для друзей</h3>
-                <div class="flex gap-2">
-                    <input id="myUserIdInput" readonly class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none">
-                    <button onclick="copyUserId()" class="bg-blue-600 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1">
-                        <i data-lucide="copy" class="w-3.5 h-3.5"></i> Копировать
-                    </button>
-                </div>
-            </div>
-
-            <div class="glass-card p-4 rounded-2xl space-y-3">
-                <h3 class="font-semibold text-sm">Добавить друга по ID</h3>
-                <div class="flex gap-2">
-                    <input id="friendIdInput" type="number" placeholder="Введите Telegram ID друга" class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none focus:border-blue-500">
-                    <button onclick="addFriend()" class="bg-emerald-600 px-3 py-2 rounded-xl text-xs font-semibold">Добавить</button>
-                </div>
-            </div>
-
-            <div id="friendsList" class="space-y-3"></div>
-        </section>
-
-    </main>
-
-    <!-- МОДАЛЬНОЕ ОКНО "МНЕ ТЯЖЕЛО" (SOS) -->
-    <div id="sosModal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
-        <div class="glass-card p-6 rounded-3xl w-full max-w-sm text-center space-y-5 border border-red-500/30">
-            <div class="flex justify-between items-center">
-                <span class="text-xs text-red-400 font-semibold uppercase tracking-wider">Экстренная поддержка</span>
-                <button onclick="closeSosModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
-            </div>
-
-            <div class="space-y-2">
-                <h3 class="text-xl font-bold">Дыши глубоко</h3>
-                <p class="text-xs text-slate-400">Сильная тяга длится всего 3–5 минут. Подожди, пока сойдет волна.</p>
-            </div>
-
-            <!-- Анимация дыхания / Таймер -->
-            <div class="py-4 flex flex-col items-center justify-center">
-                <div id="breathCircle" class="w-24 h-24 rounded-full bg-blue-500/20 border-2 border-blue-400 flex items-center justify-center transition-all duration-1000 scale-100">
-                    <span id="sosTimer" class="text-2xl font-extrabold text-blue-400">03:00</span>
-                </div>
-                <p id="breathText" class="text-xs text-blue-300 mt-3 font-medium">Вдох...</p>
-            </div>
-
-            <div class="pt-2 border-t border-slate-800 space-y-2">
-                <p class="text-xs text-slate-400">Если срыв все же произошел:</p>
-                <button onclick="showRelapseReasonForm()" class="w-full bg-red-500/20 text-red-400 border border-red-500/30 py-2.5 rounded-xl text-xs font-semibold hover:bg-red-500/30 transition">
-                    Зафиксировать срыв
-                </button>
-            </div>
-
-            <!-- Форма причины срыва -->
-            <div id="relapseForm" class="hidden space-y-3 pt-2 text-left">
-                <label class="text-xs text-slate-400">Причина срыва / Триггер:</label>
-                <select id="relapseReason" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs outline-none">
-                    <option value="Стресс">Стресс / Нервы</option>
-                    <option value="Алкоголь">Алкоголь / Вечеринка</option>
-                    <option value="Компания">За компанию</option>
-                    <option value="Скука">Скука / Автоматизм</option>
-                    <option value="Другое">Другое</option>
-                </select>
-                <button onclick="submitRelapse()" class="w-full bg-red-600 text-white py-2 rounded-xl text-xs font-medium">Подтвердить сброс</button>
-            </div>
+            <button onclick="saveHabit()">Сохранить</button>
+            <button onclick="closeModal('addModal')" style="background-color: transparent; color: #aaa;">Отмена</button>
         </div>
     </div>
 
-    <!-- НИЖНЯЯ НАВИГАЦИЯ -->
-    <nav class="fixed bottom-0 left-0 right-0 glass-card border-t border-slate-800 px-6 py-3 flex justify-around items-center z-10">
-        <button onclick="switchTab('home')" id="navHome" class="flex flex-col items-center gap-1 text-xs tab-active">
-            <i data-lucide="home" class="w-5 h-5"></i>
-            <span>Главная</span>
-        </button>
-        <button onclick="switchTab('health')" id="navHealth" class="flex flex-col items-center gap-1 text-xs text-slate-400">
-            <i data-lucide="heart-pulse" class="w-5 h-5"></i>
-            <span>Здоровье</span>
-        </button>
-        <button onclick="switchTab('calendar')" id="navCalendar" class="flex flex-col items-center gap-1 text-xs text-slate-400">
-            <i data-lucide="calendar" class="w-5 h-5"></i>
-            <span>Календарь</span>
-        </button>
-        <button onclick="switchTab('friends')" id="navFriends" class="flex flex-col items-center gap-1 text-xs text-slate-400">
-            <i data-lucide="users" class="w-5 h-5"></i>
-            <span>Друзья</span>
-        </button>
-    </nav>
+    <!-- Модальное окно добавления друга -->
+    <div id="friendModal" class="modal">
+        <div class="modal-content">
+            <h3>Добавить друга</h3>
+            <label>Telegram ID или @username друга:</label>
+            <input type="text" id="friendTagInput" placeholder="Например: 12345678 или @username">
+            <button onclick="addFriend()">Добавить</button>
+            <button onclick="closeModal('friendModal')" style="background-color: transparent; color: #aaa;">Отмена</button>
+        </div>
+    </div>
 
-    <!-- СКРИПТ ПРИЛОЖЕНИЯ -->
-    <!-- СКРИПТ ПРИЛОЖЕНИЯ -->
     <script>
         const tg = window.Telegram?.WebApp;
-        if (tg) {
-            tg.expand();
-            tg.ready();
-        }
+        if (tg) tg.expand();
 
         const userId = tg?.initDataUnsafe?.user?.id || 12345678;
         let habitsData = [];
-        let sosInterval = null;
-        let sosSeconds = 180;
-        let mainTimerInterval = null;
+        let chartInstance = null;
 
-        lucide.createIcons();
-        document.getElementById('myUserIdInput').value = userId;
-
-        function switchTab(tab) {
-            ['Home', 'Health', 'Calendar', 'Friends'].forEach(t => {
-                document.getElementById(`tab${t}`).classList.add('hidden');
-                document.getElementById(`nav${t}`).classList.remove('tab-active');
-                document.getElementById(`nav${t}`).classList.add('text-slate-400');
-            });
-
-            const activeTab = tab.charAt(0).toUpperCase() + tab.slice(1);
-            document.getElementById(`tab${activeTab}`).classList.remove('hidden');
-            document.getElementById(`nav${activeTab}`).classList.add('tab-active');
-            document.getElementById(`nav${activeTab}`).classList.remove('text-slate-400');
-
-            if (tab === 'health') renderHealth();
-            if (tab === 'calendar') renderCalendar();
-            if (tab === 'friends') loadFriends();
+        // Синхронизация имени и фото
+        if (tg?.initDataUnsafe?.user) {
+            const u = tg.initDataUnsafe.user;
+            fetch('/api/users/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: u.id,
+                    first_name: u.first_name + (u.last_name ? ' ' + u.last_name : ''),
+                    username: u.username || null,
+                    photo_url: u.photo_url || null
+                })
+            }).catch(e => console.log(e));
         }
+
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
         async function loadHabits() {
             try {
@@ -263,366 +222,233 @@
                 const data = await res.json();
                 habitsData = data.habits || [];
                 renderHabits();
-                startMainTimers();
             } catch (e) {
-                console.error("Ошибка загрузки привычек", e);
+                console.error("Ошибка загрузки привычек:", e);
             }
         }
 
         function renderHabits() {
-            const list = document.getElementById('habitsList');
-            if (habitsData.length === 0) {
-                list.innerHTML = `
-                    <div class="glass-card p-6 rounded-2xl text-center space-y-2">
-                        <p class="text-slate-400 text-sm">У вас пока нет активных трекеров</p>
-                        <button onclick="showAddForm()" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2 rounded-xl text-sm transition">
-                            + Добавить привычку
-                        </button>
-                    </div>`;
+            const container = document.getElementById('habitsContainer');
+            if (!habitsData || habitsData.length === 0) {
+                container.innerHTML = `<div class="card" style="text-align:center;">Нет активных трекеров</div>`;
                 return;
             }
 
-            list.innerHTML = habitsData.map((h, idx) => {
-                const isVape = h.type === 'vape';
-                const name = isVape ? 'Вейп / Сигареты' : 'Алкоголь';
-                const icon = isVape ? 'wind' : 'wine';
-
-                // Цвет диаграммы: Зеленый для сигарет/вейпа, Желтый для алкоголя
-                const strokeColor = isVape ? '#22c55e' : '#eab308';
-                const textColor = isVape ? 'text-emerald-400' : 'text-amber-400';
-
-                // SVG параметры диаграммы
-                const radius = 52;
-                const circumference = 2 * Math.PI * radius;
-
-                return `
-                    <div class="glass-card p-5 rounded-2xl space-y-4 relative overflow-hidden">
-                        <div class="flex justify-between items-center border-b border-slate-700/50 pb-3">
-                            <div class="flex items-center gap-2">
-                                <i data-lucide="${icon}" class="${textColor} w-5 h-5"></i>
-                                <span class="font-bold text-sm">${name}</span>
-                            </div>
-                            <button onclick="deleteSingleHabit('${h.type}')" class="text-slate-500 hover:text-red-400 text-xs">
-                                <i data-lucide="x" class="w-4 h-4"></i>
-                            </button>
+            container.innerHTML = habitsData.map(h => `
+                <div class="card">
+                    <h2>${h.type === 'vape' ? 'Вейп / Электронка' : 'Алкоголь'}</h2>
+                    <div class="timer" id="timer-${h.id}">00д : 00ч : 00м : 00с</div>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value" id="saved-${h.id}">0 ₽</div>
+                            <div class="stat-label">Сэкономлено</div>
                         </div>
-
-                        <!-- Кольцевая диаграмма и точное время -->
-                        <div class="flex flex-col items-center justify-center py-2 relative">
-                            <div class="relative w-36 h-36 flex items-center justify-center">
-                                <svg class="w-full h-full transform -rotate-90">
-                                    <circle cx="72" cy="72" r="${radius}" stroke="rgba(51, 65, 85, 0.4)" stroke-width="8" fill="transparent" />
-                                    <circle id="ringProgress-${idx}" cx="72" cy="72" r="${radius}" stroke="${strokeColor}" stroke-width="8" stroke-dasharray="${circumference}" stroke-dashoffset="${circumference}" stroke-linecap="round" fill="transparent" class="progress-ring-circle" />
-                                </svg>
-                                <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
-                                    <span id="timerDays-${idx}" class="text-2xl font-black text-white">0</span>
-                                    <span class="text-[10px] uppercase font-semibold tracking-wider text-slate-400">дней</span>
-                                </div>
-                            </div>
-
-                            <!-- Подробные часы, минуты, секунды -->
-                            <div id="timerDetail-${idx}" class="mt-3 text-xs font-mono font-medium ${textColor} bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700">
-                                00ч : 00м : 00с
-                            </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="avoided-${h.id}">0</div>
+                            <div class="stat-label">Не пропущено</div>
                         </div>
+                    </div>
+                    <button class="danger" onclick="logRelapse('${h.type}')">Срыв (Сбросить)</button>
+                </div>
+            `).join('');
 
-                        <!-- Финансы -->
-                        <div class="bg-slate-800/60 p-3 rounded-xl border border-slate-700/50 flex justify-between items-center">
-                            <span class="text-xs text-slate-400">Сэкономлено средств</span>
-                            <span id="savedMoney-${idx}" class="text-lg font-extrabold text-emerald-400">0 ₴</span>
-                        </div>
-                    </div>`;
-            }).join('');
-
-            lucide.createIcons();
-            updateTimersData();
+            updateTimers();
         }
 
-        function updateTimersData() {
-            const radius = 52;
-            const circumference = 2 * Math.PI * radius;
+        function updateTimers() {
+            const now = new Date();
+            habitsData.forEach(h => {
+                const quitDate = new Date(h.quit_date + "Z");
+                const diffMs = now - quitDate;
+                if (diffMs < 0) return;
 
-            habitsData.forEach((h, idx) => {
-                const now = new Date();
-                const quit = new Date(h.quit_date);
-                const diffMs = Math.max(0, now - quit);
+                const seconds = Math.floor((diffMs / 1000) % 60);
+                const minutes = Math.floor((diffMs / (1000 * 60)) % 60);
+                const hours = Math.floor((diffMs / (1000 * 60 * 60)) % 24);
+                const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-                const totalSeconds = Math.floor(diffMs / 1000);
-                const days = Math.floor(totalSeconds / (3600 * 24));
-                const hours = Math.floor((totalSeconds % (3600 * 24)) / 3600);
-                const minutes = Math.floor((totalSeconds % 3600) / 60);
-                const seconds = totalSeconds % 60;
-
-                const elDays = document.getElementById(`timerDays-${idx}`);
-                const elDetail = document.getElementById(`timerDetail-${idx}`);
-                const elMoney = document.getElementById(`savedMoney-${idx}`);
-                const elRing = document.getElementById(`ringProgress-${idx}`);
-
-                if (elDays) elDays.innerText = days;
-                if (elDetail) {
-                    const pad = n => n.toString().padStart(2, '0');
-                    elDetail.innerText = `${pad(hours)}ч : ${pad(minutes)}м : ${pad(seconds)}с`;
+                const timerEl = document.getElementById(`timer-${h.id}`);
+                if (timerEl) {
+                    timerEl.innerText = `${days}д : ${hours.toString().padStart(2, '0')}ч : ${minutes.toString().padStart(2, '0')}м : ${seconds.toString().padStart(2, '0')}с`;
                 }
 
-                if (elMoney) {
-                    const diffDays = diffMs / (1000 * 60 * 60 * 24);
-                    const savedMoney = Math.max(0, Math.floor(diffDays * h.per_day * (h.unit_price / h.unit_size)));
-                    elMoney.innerText = `${savedMoney} ₴`;
-                }
+                const daysFloat = diffMs / (1000 * 60 * 60 * 24);
+                const savedMoney = (daysFloat * (h.unit_price / (h.unit_size || 1))).toFixed(0);
+                const avoidedUnits = (daysFloat * h.per_day).toFixed(1);
 
-                // Динамическое заполнение кольца прогресса (цель — 30 дней)
-                if (elRing) {
-                    const goalDays = 30;
-                    // Если прошло 0 дней, оставляем минимальный видимый хвостик или рассчитываем по часам
-                    const currentProgress = (diffMs / (1000 * 60 * 60 * 24)) / goalDays;
-                    const percent = Math.min(100, Math.max(0.01, currentProgress * 100));
-                    const offset = circumference - (percent / 100) * circumference;
-                    elRing.style.strokeDashoffset = offset;
-                }
+                const savedEl = document.getElementById(`saved-${h.id}`);
+                const avoidedEl = document.getElementById(`avoided-${h.id}`);
+                if (savedEl) savedEl.innerText = `${savedMoney} ₽`;
+                if (avoidedEl) avoidedEl.innerText = avoidedUnits;
             });
-        }
-
-        function startMainTimers() {
-            clearInterval(mainTimerInterval);
-            mainTimerInterval = setInterval(updateTimersData, 1000);
         }
 
         async function saveHabit() {
             const type = document.getElementById('habitType').value;
-            const quitDate = document.getElementById('quitDate').value;
-            const perDay = parseFloat(document.getElementById('perDay').value);
-            const unitPrice = parseFloat(document.getElementById('unitPrice').value);
-            const unitSize = parseFloat(document.getElementById('unitSize').value);
+            const quitDateVal = document.getElementById('quitDate').value;
+            const perDay = parseFloat(document.getElementById('perDay').value) || 1;
+            const unitPrice = parseFloat(document.getElementById('unitPrice').value) || 0;
+            const unitSize = parseFloat(document.getElementById('unitSize').value) || 1;
 
-            if (!quitDate || isNaN(perDay) || isNaN(unitPrice) || isNaN(unitSize)) {
-                alert("Заполните все поля!");
+            if (!quitDateVal) {
+                alert("Укажите дату и время!");
                 return;
             }
 
-            await fetch('/api/habits', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: userId,
-                    type: type,
-                    quit_date: new Date(quitDate).toISOString(),
-                    per_day: perDay,
-                    unit_price: unitPrice,
-                    unit_size: unitSize
-                })
-            });
+            const localDate = new Date(quitDateVal);
+            const utcDateString = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000)).toISOString();
 
-            hideAddForm();
-            loadHabits();
-        }
-
-        async function deleteSingleHabit(type) {
-            if (!confirm("Удалить этот трекер?")) return;
-            await fetch(`/api/habits/${userId}/${type}`, { method: 'DELETE' });
-            loadHabits();
-        }
-
-        async function deleteAllHabits() {
-            if (!confirm("Сбросить ВСЕ привычки?")) return;
-            await fetch(`/api/habits/${userId}`, { method: 'DELETE' });
-            loadHabits();
-        }
-
-        function renderHealth() {
-            const container = document.getElementById('healthMilestones');
-            if (habitsData.length === 0) {
-                container.innerHTML = `<p class="text-slate-400 text-xs text-center py-4">Добавьте привычку для отслеживания здоровья</p>`;
-                return;
-            }
-
-            const minQuitDate = new Date(Math.min(...habitsData.map(h => new Date(h.quit_date))));
-            const hoursPassed = (new Date() - minQuitDate) / (1000 * 60 * 60);
-
-            const milestones = [
-                { hours: 0.33, title: "Пульс и давление", desc: "Нормализуются пульс и кровяное давление." },
-                { hours: 8, title: "Кислород в крови", desc: "Уровень угарного газа снижается, кислород в норме." },
-                { hours: 24, title: "Риск инфаркта", desc: "Начинает снижаться риск сердечного приступа." },
-                { hours: 48, title: "Вкус и обоняние", desc: "Восстанавливаются нервные окончания, вкус ярче." },
-                { hours: 72, title: "Дыхание", desc: "Бронхи расслабляются, дышать становится легче." },
-                { hours: 336, title: "Кровообращение", desc: "Улучшается работа легких и общий тонус." }
-            ];
-
-            container.innerHTML = milestones.map(m => {
-                const progress = Math.min(100, Math.floor((hoursPassed / m.hours) * 100));
-                const completed = progress >= 100;
-
-                return `
-                    <div class="glass-card p-3.5 rounded-xl space-y-2">
-                        <div class="flex justify-between items-center text-xs">
-                            <span class="font-semibold ${completed ? 'text-emerald-400' : 'text-slate-200'}">${m.title}</span>
-                            <span class="text-slate-400">${completed ? '100%' : progress + '%'}</span>
-                        </div>
-                        <p class="text-xs text-slate-400">${m.desc}</p>
-                        <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                            <div class="bg-gradient-to-r from-blue-500 to-emerald-400 h-1.5 rounded-full" style="width: ${progress}%"></div>
-                        </div>
-                    </div>`;
-            }).join('');
-        }
-
-        async function renderCalendar() {
-            const grid = document.getElementById('calendarGrid');
-            const now = new Date();
-            document.getElementById('currentMonthYear').innerText = now.toLocaleString('ru', { month: 'long', year: 'numeric' });
-
-            const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-
-            const res = await fetch(`/api/relapses/${userId}`);
-            const data = await res.json();
-            const relapses = data.relapses || [];
-
-            let html = '';
-            for (let day = 1; day <= daysInMonth; day++) {
-                const isPastOrToday = day <= now.getDate();
-                const hasRelapse = relapses.some(r => new Date(r.relapse_date).getDate() === day && new Date(r.relapse_date).getMonth() === now.getMonth());
-
-                let bgClass = 'bg-slate-800/40 text-slate-600';
-                if (isPastOrToday) {
-                    bgClass = hasRelapse ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
-                }
-
-                html += `<div class="p-2 rounded-lg font-medium ${bgClass}">${day}</div>`;
-            }
-            grid.innerHTML = html;
-
-            const historyList = document.getElementById('relapseHistory');
-            if (relapses.length === 0) {
-                historyList.innerHTML = `<p class="text-center py-2">Срывов не зафиксировано 🎉</p>`;
-            } else {
-                historyList.innerHTML = relapses.map(r => `
-                    <div class="flex justify-between items-center p-2 bg-slate-800/50 rounded-lg">
-                        <span>${r.habit_type === 'vape' ? 'Вейп' : 'Алкоголь'} — ${r.reason}</span>
-                        <span class="text-slate-500">${new Date(r.relapse_date).toLocaleDateString()}</span>
-                    </div>
-                `).join('');
-            }
-        }
-
-        async function loadFriends() {
-            const container = document.getElementById('friendsList');
             try {
-                const res = await fetch(`/api/friends/${userId}`);
-                const data = await res.json();
-                const friends = data.friends || [];
+                const res = await fetch('/api/habits', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        type: type,
+                        quit_date: utcDateString,
+                        per_day: perDay,
+                        unit_price: unitPrice,
+                        unit_size: unitSize
+                    })
+                });
 
-                if (friends.length === 0) {
-                    container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">Список друзей пуст</p>`;
-                    return;
+                if (res.ok) {
+                    closeModal('addModal');
+                    loadHabits();
+                } else {
+                    alert("Ошибка при сохранении привычки");
                 }
-
-                container.innerHTML = friends.map(f => {
-                    const days = f.habits.length > 0
-                        ? Math.floor((new Date() - new Date(f.habits[0].quit_date)) / (1000 * 60 * 60 * 24))
-                        : 0;
-
-                    return `
-                        <div class="glass-card p-4 rounded-xl flex items-center justify-between">
-                            <div class="flex items-center gap-3">
-                                <div class="w-9 h-9 rounded-full bg-blue-600/30 flex items-center justify-center font-bold text-blue-400 border border-blue-500/30">
-                                    ${f.first_name.charAt(0)}
-                                </div>
-                                <div>
-                                    <h4 class="font-semibold text-xs">${f.first_name}</h4>
-                                    <p class="text-xs text-slate-400">Чист: ${days} дней 🚀</p>
-                                </div>
-                            </div>
-                        </div>`;
-                }).join('');
             } catch (e) {
-                console.error(e);
+                alert("Ошибка сети при отправке данных");
             }
         }
 
-        async function addFriend() {
-            const friendId = parseInt(document.getElementById('friendIdInput').value);
-            if (!friendId) return alert("Введите ID друга");
-
-            const res = await fetch('/api/friends/add', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: userId, friend_id: friendId })
-            });
-
-            if (res.ok) {
-                alert("Друг добавлен!");
-                document.getElementById('friendIdInput').value = '';
-                loadFriends();
-            } else {
-                alert("Ошибка добавления друга");
-            }
-        }
-
-        function copyUserId() {
-            navigator.clipboard.writeText(userId);
-            alert("ID скопирован в буфер обмена!");
-        }
-
-        function openSosModal() {
-            document.getElementById('sosModal').classList.remove('hidden');
-            startSosTimer();
-        }
-
-        function closeSosModal() {
-            document.getElementById('sosModal').classList.add('hidden');
-            clearInterval(sosInterval);
-            sosSeconds = 180;
-            document.getElementById('relapseForm').classList.add('hidden');
-        }
-
-        function startSosTimer() {
-            clearInterval(sosInterval);
-            let state = 0;
-            sosInterval = setInterval(() => {
-                sosSeconds--;
-                const mins = Math.floor(sosSeconds / 60).toString().padStart(2, '0');
-                const secs = (sosSeconds % 60).toString().padStart(2, '0');
-                document.getElementById('sosTimer').innerText = `${mins}:${secs}`;
-
-                if (sosSeconds % 4 === 0) {
-                    state = 1 - state;
-                    const circle = document.getElementById('breathCircle');
-                    const text = document.getElementById('breathText');
-                    if (state === 1) {
-                        circle.classList.replace('scale-100', 'scale-125');
-                        text.innerText = "Выдох...";
-                    } else {
-                        circle.classList.replace('scale-125', 'scale-100');
-                        text.innerText = "Вдох...";
-                    }
-                }
-
-                if (sosSeconds <= 0) clearInterval(sosInterval);
-            }, 1000);
-        }
-
-        function showRelapseReasonForm() {
-            document.getElementById('relapseForm').classList.remove('hidden');
-        }
-
-        async function submitRelapse() {
-            const reason = document.getElementById('relapseReason').value;
-            const habitType = habitsData.length > 0 ? habitsData[0].type : 'vape';
+        async function logRelapse(habitType) {
+            if (!confirm("Зафиксировать срыв и сбросить таймер?")) return;
 
             await fetch('/api/relapses', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: userId, habit_type: habitType, reason: reason })
+                body: JSON.stringify({
+                    user_id: userId,
+                    habit_type: habitType,
+                    reason: "Срыв"
+                })
             });
 
-            closeSosModal();
             loadHabits();
-            alert("Счетчик сброшен. Не унывай, начнем заново!");
+            loadChart();
         }
 
-        function showAddForm() { document.getElementById('addForm').classList.remove('hidden'); }
-        function hideAddForm() { document.getElementById('addForm').classList.add('hidden'); }
+        async function loadChart() {
+            try {
+                const res = await fetch(`/api/relapses/${userId}`);
+                const data = await res.json();
+                const relapses = data.relapses || [];
 
+                const counts = { vape: 0, alcohol: 0 };
+                relapses.forEach(r => {
+                    if (counts[r.habit_type] !== undefined) counts[r.habit_type]++;
+                });
+
+                const ctx = document.getElementById('relapsesChart').getContext('2d');
+                if (chartInstance) chartInstance.destroy();
+
+                chartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Вейп', 'Алкоголь'],
+                        datasets: [{
+                            data: [counts.vape, counts.alcohol],
+                            backgroundColor: ['#0088cc', '#ff4d4d']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { labels: { color: '#fff' } }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error("Ошибка загрузки диаграммы:", e);
+            }
+        }
+
+        async function loadFriends() {
+            try {
+                const res = await fetch(`/api/friends/${userId}`);
+                const data = await res.json();
+                const container = document.getElementById('friendsContainer');
+
+                if (!data.friends || data.friends.length === 0) {
+                    container.innerHTML = `<div style="color:#888;">Список друзей пуст</div>`;
+                    return;
+                }
+
+                container.innerHTML = data.friends.map(f => {
+                    const avatar = f.photo_url
+                        ? `<img src="${f.photo_url}" class="avatar">`
+                        : `<div class="avatar">${(f.first_name || 'U')[0]}</div>`;
+
+                    return `
+                        <div class="friend-item">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                ${avatar}
+                                <div>
+                                    <div><b>${f.first_name}</b></div>
+                                    ${f.username ? `<small style="color:#aaa;">@${f.username}</small>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (e) {
+                console.error("Ошибка загрузки друзей:", e);
+            }
+        }
+
+        async function addFriend() {
+            const tagInput = document.getElementById('friendTagInput').value.trim();
+            if (!tagInput) {
+                alert("Введите ID или @username");
+                return;
+            }
+
+            let friendId = parseInt(tagInput);
+            let payload = { user_id: userId };
+
+            if (!isNaN(friendId)) {
+                payload.friend_id = friendId;
+            } else {
+                payload.tag = tagInput;
+            }
+
+            try {
+                const res = await fetch('/api/friends/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    closeModal('friendModal');
+                    document.getElementById('friendTagInput').value = '';
+                    loadFriends();
+                } else {
+                    const err = await res.json();
+                    alert(err.detail || "Не удалось добавить друга");
+                }
+            } catch (e) {
+                alert("Ошибка сети при добавлении друга");
+            }
+        }
+
+        // Запуск
         loadHabits();
+        loadChart();
+        loadFriends();
+        setInterval(updateTimers, 1000);
     </script>
 </body>
 </html>
